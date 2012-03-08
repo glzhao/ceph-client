@@ -946,9 +946,9 @@ void ceph_calc_file_object_mapping(struct ceph_file_layout *layout,
 				   u64 *object_ext_off,
 				   u64 *object_ext_len)
 {
-	u64 object_size = (u64) ceph_file_layout_object_size(layout);
-	u64 stripe_unit = (u64) ceph_file_layout_stripe_unit(layout);
-	u64 stripe_count = (u64) ceph_file_layout_stripe_count(layout);
+	u64 object_size = ceph_file_layout_object_size(layout);
+	u64 stripe_unit = ceph_file_layout_stripe_unit(layout);
+	u64 stripe_count = ceph_file_layout_stripe_count(layout);
 	u64 stripe_unit_per_object;
 	u64 stripe_unit_num;
 	u64 stripe_unit_offset;
@@ -1028,29 +1028,30 @@ int ceph_calc_object_layout(struct ceph_object_layout *ol,
 {
 	unsigned num, num_mask;
 	struct ceph_pg pgid;
-	s32 preferred = (s32) ceph_file_layout_pg_preferred(fl);
+	s32 preferred = ceph_file_layout_pg_preferred(fl);
 	int poolid = (int) ceph_file_layout_pg_pool(fl);
 	struct ceph_pg_pool_info *pool;
 	unsigned ps;
 
 	BUG_ON(!osdmap);
+	BUG_ON(preferred > (s32) SHRT_MAX);
+	BUG_ON(preferred < (s32) SHRT_MIN);
 
 	pool = __lookup_pg_pool(&osdmap->pg_pools, poolid);
 	if (!pool)
 		return -EIO;
-	ps = ceph_str_hash(pool->v.object_hash, oid, strlen(oid));
 
-	if (preferred == CEPH_FILE_LAYOUT_PG_PREFERRED_NONE) {
-		num = le32_to_cpu(pool->v.pg_num);
-		num_mask = pool->pg_num_mask;
-	} else {
+	ps = ceph_str_hash(pool->v.object_hash, oid, strlen(oid));
+	if (preferred != CEPH_FILE_LAYOUT_PG_PREFERRED_NONE) {
+		BUG_ON(preferred < 0);
 		ps += preferred;
-		num = le32_to_cpu(pool->v.lpg_num);
-		num_mask = pool->lpg_num_mask;
 	}
 
+	num = le32_to_cpu(pool->v.lpg_num);
+	num_mask = pool->lpg_num_mask;
+
 	pgid.ps = cpu_to_le16(ps);
-	pgid.preferred = cpu_to_le16(preferred);
+	pgid.preferred = cpu_to_le16((s16) preferred);
 	pgid.pool = fl->fl_pg_pool;
 	if (preferred == CEPH_FILE_LAYOUT_PG_PREFERRED_NONE)
 		dout("calc_object_layout '%s' pgid %d.%x\n", oid, poolid, ps);
