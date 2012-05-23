@@ -265,6 +265,7 @@ static void ceph_sock_state_change(struct sock *sk)
 				clear_bit(NEGOTIATING, &con->state);
 				con->error_msg = "connection failed";
 			} else {
+				clear_bit(CONNECTED, &con->state);
 				con->error_msg = "socket closed";
 			}
 			queue_con(con);
@@ -400,6 +401,7 @@ static int con_close_socket(struct ceph_connection *con)
 	if (!con->sock)
 		return 0;
 	clear_bit(NEGOTIATING, &con->flags);
+	clear_bit(CONNECTED, &con->state);
 	set_bit(SOCK_CLOSED, &con->flags);
 	rc = con->sock->ops->shutdown(con->sock, SHUT_RDWR);
 	sock_release(con->sock);
@@ -456,6 +458,7 @@ void ceph_con_close(struct ceph_connection *con)
 {
 	dout("con_close %p peer %s\n", con,
 	     ceph_pr_addr(&con->peer_addr.in_addr));
+	clear_bit(CONNECTED, &con->state);
 	set_bit(CLOSED, &con->state);  /* in case there's queued work */
 	clear_bit(STANDBY, &con->state);  /* avoid connect_seq bump */
 	clear_bit(LOSSYTX, &con->flags);  /* so we retry next connect */
@@ -1420,6 +1423,7 @@ static int process_banner(struct ceph_connection *con)
 
 static void fail_protocol(struct ceph_connection *con)
 {
+	clear_bit(CONNECTED, &con->state);
 	reset_connection(con);
 	set_bit(CLOSED, &con->state);  /* in case there's queued work */
 
@@ -1553,6 +1557,7 @@ static int process_connect(struct ceph_connection *con)
 		}
 		clear_bit(NEGOTIATING, &con->state);
 		clear_bit(CONNECTING, &con->state);
+		set_bit(CONNECTED, &con->state);
 		con->peer_global_seq = le32_to_cpu(con->in_reply.global_seq);
 		con->connect_seq++;
 		con->peer_features = server_feat;
@@ -2126,6 +2131,7 @@ more:
 			prepare_read_ack(con);
 			break;
 		case CEPH_MSGR_TAG_CLOSE:
+			clear_bit(CONNECTED, &con->state);
 			set_bit(CLOSED, &con->state);   /* fixme */
 			goto out;
 		default:
