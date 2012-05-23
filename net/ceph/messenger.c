@@ -256,10 +256,12 @@ static void ceph_sock_state_change(struct sock *sk)
 		dout("%s TCP_CLOSE_WAIT\n", __func__);
 		con_sock_state_closing(con);
 		if (test_and_set_bit(SOCK_CLOSED, &con->flags) == 0) {
-			if (test_and_clear_bit(CONNECTING, &con->state))
+			if (test_and_clear_bit(CONNECTING, &con->state)) {
+				clear_bit(NEGOTIATING, &con->state);
 				con->error_msg = "connection failed";
-			else
+			} else {
 				con->error_msg = "socket closed";
+			}
 			queue_con(con);
 		}
 		break;
@@ -392,6 +394,7 @@ static int con_close_socket(struct ceph_connection *con)
 	dout("con_close_socket on %p sock %p\n", con, con->sock);
 	if (!con->sock)
 		return 0;
+	clear_bit(NEGOTIATING, &con->flags);
 	set_bit(SOCK_CLOSED, &con->flags);
 	rc = con->sock->ops->shutdown(con->sock, SHUT_RDWR);
 	sock_release(con->sock);
@@ -1543,6 +1546,7 @@ static int process_connect(struct ceph_connection *con)
 			fail_protocol(con);
 			return -1;
 		}
+		clear_bit(NEGOTIATING, &con->state);
 		clear_bit(CONNECTING, &con->state);
 		con->peer_global_seq = le32_to_cpu(con->in_reply.global_seq);
 		con->connect_seq++;
@@ -1928,7 +1932,6 @@ ceph_con_connect_request(struct ceph_connection *con)
 
 	prepare_read_banner(con);
 	set_bit(CONNECTING, &con->state);
-	clear_bit(NEGOTIATING, &con->state);
 
 	BUG_ON(con->in_msg);
 	con->in_tag = CEPH_MSGR_TAG_READY;
