@@ -1918,6 +1918,57 @@ static void process_message(struct ceph_connection *con)
 	prepare_read_tag(con);
 }
 
+static int
+ceph_con_connect_request(struct ceph_connection *con)
+{
+	int ret;
+
+	con_out_kvec_reset(con);
+	prepare_write_banner(con);
+	ret = prepare_write_connect(con);
+	if (ret < 0)
+		return ret;
+
+	prepare_read_banner(con);
+	set_bit(CONNECTING, &con->state);
+	clear_bit(NEGOTIATING, &con->state);
+
+	BUG_ON(con->in_msg);
+	con->in_tag = CEPH_MSGR_TAG_READY;
+	dout("%s initiating connect on %p new state %lu\n",
+		__func__, con, con->state);
+	ret = ceph_tcp_connect(con);
+	if (!ret)
+		return 0;
+
+	con->error_msg = "connect error";
+
+	return ret;
+}
+
+static int
+ceph_con_connect_response(struct ceph_connection *con)
+{
+	int ret;
+
+	if (!test_bit(NEGOTIATING, &con->state)) {
+		dout("%s connecting\n", __func__);
+		ret = read_partial_banner(con);
+		if (ret <= 0)
+			return ret;
+		ret = process_banner(con);
+		if (ret < 0)
+			return ret;
+	}
+	ret = read_partial_connect(con);
+	if (ret <= 0)
+		return ret;
+	ret = process_connect(con);
+	if (ret < 0)
+		return ret;
+
+	return 1;	/* Connection established */
+}
 
 /*
  * Write something to the socket.  Called in a worker thread when the
@@ -1935,24 +1986,9 @@ more:
 
 	/* open the socket first? */
 	if (con->sock == NULL) {
-		con_out_kvec_reset(con);
-		prepare_write_banner(con);
-		ret = prepare_write_connect(con);
+		ret = ceph_con_connect_request(con);
 		if (ret < 0)
 			goto out;
-		prepare_read_banner(con);
-		set_bit(CONNECTING, &con->state);
-		clear_bit(NEGOTIATING, &con->state);
-
-		BUG_ON(con->in_msg);
-		con->in_tag = CEPH_MSGR_TAG_READY;
-		dout("try_write initiating connect on %p new state %lu\n",
-		     con, con->state);
-		ret = ceph_tcp_connect(con);
-		if (ret < 0) {
-			con->error_msg = "connect error";
-			goto out;
-		}
 	}
 
 more_kvec:
@@ -2046,20 +2082,8 @@ more:
 	}
 
 	if (test_bit(CONNECTING, &con->state)) {
-		if (!test_bit(NEGOTIATING, &con->state)) {
-			dout("try_read connecting\n");
-			ret = read_partial_banner(con);
-			if (ret <= 0)
-				goto out;
-			ret = process_banner(con);
-			if (ret < 0)
-				goto out;
-		}
-		ret = read_partial_connect(con);
+		ret = ceph_con_connect_response(con);
 		if (ret <= 0)
-			goto out;
-		ret = process_connect(con);
-		if (ret < 0)
 			goto out;
 		goto more;
 	}
