@@ -256,7 +256,7 @@ static void ceph_sock_state_change(struct sock *sk)
 		dout("%s TCP_CLOSE_WAIT\n", __func__);
 		con_sock_state_closing(con);
 		if (test_and_set_bit(SOCK_CLOSED, &con->flags) == 0) {
-			if (test_bit(CONNECTING, &con->state))
+			if (test_and_clear_bit(CONNECTING, &con->state))
 				con->error_msg = "connection failed";
 			else
 				con->error_msg = "socket closed";
