@@ -396,12 +396,10 @@ static int con_close_socket(struct ceph_connection *con)
 	if (!con->sock)
 		return 0;
 	clear_bit(CONNECTED, &con->state);
-	set_bit(SOCK_CLOSED, &con->flags);
 	rc = con->sock->ops->shutdown(con->sock, SHUT_RDWR);
 	sock_release(con->sock);
 	con->sock = NULL;
 	con_sock_state_closed(con);
-	clear_bit(SOCK_CLOSED, &con->flags);
 	return rc;
 }
 
