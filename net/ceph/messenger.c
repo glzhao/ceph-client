@@ -1958,23 +1958,29 @@ ceph_con_connect_request(struct ceph_connection *con)
 }
 
 static int
+ceph_con_banner_response(struct ceph_connection *con)
+{
+	int ret;
+
+	WARN_ON(test_bit(NEGOTIATING, &con->state));
+
+	dout("%s connecting\n", __func__);
+	ret = read_partial_banner(con);
+	if (ret <= 0)
+		return ret;
+	ret = process_banner(con);
+	if (ret < 0)
+		return ret;
+
+	return 1;
+}
+
+static int
 ceph_con_connect_response(struct ceph_connection *con)
 {
 	int ret;
 
-	if (test_bit(CONNECTING, &con->state)) {
-		WARN_ON(test_bit(NEGOTIATING, &con->state));
-		dout("%s connecting\n", __func__);
-		ret = read_partial_banner(con);
-		if (ret <= 0)
-			return ret;
-		ret = process_banner(con);
-		if (ret < 0)
-			return ret;
-	}
-
 	WARN_ON(test_bit(CONNECTING, &con->state));
-	WARN_ON(!test_bit(NEGOTIATING, &con->state));
 
 	ret = read_partial_connect(con);
 	if (ret <= 0)
@@ -2098,8 +2104,14 @@ more:
 		goto out;
 	}
 
-	if (test_bit(CONNECTING, &con->state) ||
-			test_bit(NEGOTIATING, &con->state)) {
+	if (test_bit(CONNECTING, &con->state)) {
+		ret = ceph_con_banner_response(con);
+		if (ret <= 0)
+			    return ret;
+		goto more;
+	}
+
+	if (test_bit(NEGOTIATING, &con->state)) {
 		ret = ceph_con_connect_response(con);
 		if (ret <= 0)
 			goto out;
