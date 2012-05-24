@@ -397,6 +397,7 @@ static int con_close_socket(struct ceph_connection *con)
 	if (!con->sock)
 		return 0;
 	clear_bit(NEGOTIATING, &con->flags);
+	clear_bit(CONNECTING, &con->flags);
 	clear_bit(CONNECTED, &con->state);
 	rc = con->sock->ops->shutdown(con->sock, SHUT_RDWR);
 	sock_release(con->sock);
@@ -1956,7 +1957,8 @@ ceph_con_connect_response(struct ceph_connection *con)
 {
 	int ret;
 
-	if (!test_bit(NEGOTIATING, &con->state)) {
+	if (test_bit(CONNECTING, &con->state)) {
+		WARN_ON(test_bit(NEGOTIATING, &con->state));
 		dout("%s connecting\n", __func__);
 		ret = read_partial_banner(con);
 		if (ret <= 0)
@@ -1965,6 +1967,10 @@ ceph_con_connect_response(struct ceph_connection *con)
 		if (ret < 0)
 			return ret;
 	}
+
+	WARN_ON(test_bit(CONNECTING, &con->state));
+	WARN_ON(!test_bit(NEGOTIATING, &con->state));
+
 	ret = read_partial_connect(con);
 	if (ret <= 0)
 		return ret;
