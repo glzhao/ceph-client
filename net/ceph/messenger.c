@@ -1954,7 +1954,8 @@ ceph_con_connect_response(struct ceph_connection *con)
 {
 	int ret;
 
-	if (!test_bit(NEGOTIATING, &con->state)) {
+	if (test_bit(CONNECTING, &con->state)) {
+		BUG_ON(test_bit(NEGOTIATING, &con->state));
 		dout("%s connecting\n", __func__);
 		ret = read_partial_banner(con);
 		if (ret <= 0)
@@ -1963,6 +1964,10 @@ ceph_con_connect_response(struct ceph_connection *con)
 		if (ret < 0)
 			return ret;
 	}
+
+	BUG_ON(test_bit(CONNECTING, &con->state));
+	BUG_ON(!test_bit(NEGOTIATING, &con->state));
+
 	ret = read_partial_connect(con);
 	if (ret <= 0)
 		return ret;
