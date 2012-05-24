@@ -256,13 +256,14 @@ static void ceph_sock_state_change(struct sock *sk)
 		dout("%s TCP_CLOSE_WAIT\n", __func__);
 		con_sock_state_closing(con);
 		if (test_and_set_bit(SOCK_CLOSED, &con->flags) == 0) {
-			if (test_and_clear_bit(CONNECTING, &con->state)) {
-				clear_bit(NEGOTIATING, &con->state);
+			if (test_and_clear_bit(CONNECTING, &con->state))
 				con->error_msg = "connection failed";
-			} else {
-				clear_bit(CONNECTED, &con->state);
+			else if (test_and_clear_bit(NEGOTIATING, &con->state))
+				con->error_msg = "negotiation failed";
+			else if (test_and_clear_bit(CONNECTED, &con->state))
 				con->error_msg = "socket closed";
-			}
+			else
+				con->error_msg = "bad state???";
 			queue_con(con);
 		}
 		break;
@@ -1408,6 +1409,7 @@ static int process_banner(struct ceph_connection *con)
 		     ceph_pr_addr(&con->msgr->inst.addr.in_addr));
 	}
 
+	clear_bit(CONNECTING, &con->state);
 	set_bit(NEGOTIATING, &con->state);
 	prepare_read_connect(con);
 	return 0;
@@ -1548,7 +1550,6 @@ static int process_connect(struct ceph_connection *con)
 			return -1;
 		}
 		clear_bit(NEGOTIATING, &con->state);
-		clear_bit(CONNECTING, &con->state);
 		set_bit(CONNECTED, &con->state);
 		con->peer_global_seq = le32_to_cpu(con->in_reply.global_seq);
 		con->connect_seq++;
@@ -2027,7 +2028,8 @@ more_kvec:
 	}
 
 do_next:
-	if (!test_bit(CONNECTING, &con->state)) {
+	if (!test_bit(CONNECTING, &con->state) &&
+			!test_bit(NEGOTIATING, &con->state)) {
 		/* is anything else pending? */
 		if (!list_empty(&con->out_queue)) {
 			prepare_write_message(con);
@@ -2083,7 +2085,8 @@ more:
 		goto out;
 	}
 
-	if (test_bit(CONNECTING, &con->state)) {
+	if (test_bit(CONNECTING, &con->state) ||
+			test_bit(NEGOTIATING, &con->state)) {
 		ret = ceph_con_connect_response(con);
 		if (ret <= 0)
 			goto out;
