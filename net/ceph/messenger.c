@@ -187,7 +187,8 @@ static void con_sock_state_closing(struct ceph_connection *con)
 
 	old_state = atomic_xchg(&con->sock_state, CON_SOCK_STATE_CLOSING);
 	BUG_ON(old_state != CON_SOCK_STATE_CONNECTING &&
-		old_state != CON_SOCK_STATE_CONNECTED);
+		old_state != CON_SOCK_STATE_CONNECTED &&
+		old_state != CON_SOCK_STATE_CLOSING);
 }
 
 static void con_sock_state_closed(struct ceph_connection *con)
@@ -264,6 +265,7 @@ static void ceph_sock_state_change(struct sock *sk)
 				con->error_msg = "socket closed";
 			else
 				con->error_msg = "bad state???";
+			set_bit(DISCONNECTED, &con->state);
 			queue_con(con);
 		}
 		break;
@@ -399,10 +401,12 @@ static int con_close_socket(struct ceph_connection *con)
 	clear_bit(NEGOTIATING, &con->flags);
 	clear_bit(CONNECTING, &con->flags);
 	clear_bit(CONNECTED, &con->state);
+	clear_bit(DISCONNECTED, &con->state);
 	rc = con->sock->ops->shutdown(con->sock, SHUT_RDWR);
 	sock_release(con->sock);
 	con->sock = NULL;
 	con_sock_state_closed(con);
+
 	return rc;
 }
 
@@ -2251,7 +2255,7 @@ restart:
 		con_close_socket(con);
 	}
 
-	if (test_and_clear_bit(SOCK_CLOSED, &con->flags))
+	if (test_bit(DISCONNECTED, &con->state))
 		goto fault;
 
 	ret = try_read(con);
@@ -2289,6 +2293,8 @@ static void ceph_fault(struct ceph_connection *con)
 	       ceph_pr_addr(&con->peer_addr.in_addr), con->error_msg);
 	dout("fault %p state %lu to peer %s\n",
 	     con, con->state, ceph_pr_addr(&con->peer_addr.in_addr));
+
+	clear_bit(SOCK_CLOSED, &con->flags);
 
 	if (test_bit(LOSSYTX, &con->flags)) {
 		dout("fault on LOSSYTX channel\n");
