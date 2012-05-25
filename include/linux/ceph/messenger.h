@@ -127,6 +127,8 @@ struct ceph_msg_pos {
 #define CLOSED		10 /* we've closed the connection */
 #define OPENING         13 /* open connection w/ (possibly new) peer */
 
+#define DISCONNECTED	16 /* socket closed by other end */
+
 /*
  * A single connection with another host.
  *
