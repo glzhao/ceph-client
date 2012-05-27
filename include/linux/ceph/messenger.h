@@ -112,7 +112,6 @@ struct ceph_msg_pos {
 #define LOSSYTX         0  /* we can close channel or drop messages on errors */
 #define KEEPALIVE_PENDING      3
 #define WRITE_PENDING	4  /* we have data ready to send */
-#define SOCK_CLOSED	11 /* socket state changed to closed */
 #define BACKOFF         15
 
 /*
@@ -227,10 +226,9 @@ extern int ceph_msgr_init(void);
 extern void ceph_msgr_exit(void);
 extern void ceph_msgr_flush(void);
 
-extern struct ceph_messenger *ceph_messenger_create(
-	struct ceph_entity_addr *myaddr,
-	u32 features, u32 required);
-extern void ceph_messenger_destroy(struct ceph_messenger *);
+extern void ceph_messenger_init(struct ceph_messenger *msgr,
+				struct ceph_entity_addr *myaddr,
+				u32 features, u32 required, bool nocrc);
 
 extern void ceph_con_init(struct ceph_messenger *msgr,
 			  struct ceph_connection *con);
