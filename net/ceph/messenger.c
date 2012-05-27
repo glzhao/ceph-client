@@ -261,18 +261,16 @@ static void ceph_sock_state_change(struct sock *sk)
 	case TCP_CLOSE_WAIT:
 		dout("%s TCP_CLOSE_WAIT\n", __func__);
 		con_sock_state_closing(con);
-		if (test_and_set_bit(SOCK_CLOSED, &con->flags) == 0) {
-			if (test_and_clear_bit(CONNECTING, &con->state))
-				con->error_msg = "connection failed";
-			else if (test_and_clear_bit(NEGOTIATING, &con->state))
-				con->error_msg = "negotiation failed";
-			else if (test_and_clear_bit(CONNECTED, &con->state))
-				con->error_msg = "socket closed";
-			else
-				con->error_msg = "bad state???";
-			set_bit(DISCONNECTED, &con->state);
-			queue_con(con);
-		}
+		if (test_and_clear_bit(CONNECTING, &con->state))
+			con->error_msg = "connection failed";
+		else if (test_and_clear_bit(NEGOTIATING, &con->state))
+			con->error_msg = "negotiation failed";
+		else if (test_and_clear_bit(CONNECTED, &con->state))
+			con->error_msg = "socket closed";
+		else
+			con->error_msg = "bad state???";
+		set_bit(DISCONNECTED, &con->state);
+		queue_con(con);
 		break;
 	case TCP_ESTABLISHED:
 		dout("%s TCP_ESTABLISHED\n", __func__);
@@ -2298,8 +2296,6 @@ static void ceph_fault(struct ceph_connection *con)
 	       ceph_pr_addr(&con->peer_addr.in_addr), con->error_msg);
 	dout("fault %p state %lu to peer %s\n",
 	     con, con->state, ceph_pr_addr(&con->peer_addr.in_addr));
-
-	clear_bit(SOCK_CLOSED, &con->flags);
 
 	if (test_bit(LOSSYTX, &con->flags)) {
 		dout("fault on LOSSYTX channel\n");
