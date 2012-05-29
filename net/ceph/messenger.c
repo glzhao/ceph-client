@@ -267,7 +267,11 @@ static void ceph_sock_state_change(struct sock *sk)
 				con->error_msg = "negotiation failed";
 			else if (test_and_clear_bit(CONNECTED, &con->state))
 				con->error_msg = "socket closed";
-			else {
+			else if (test_and_clear_bit(STANDBY, &con->state)) {
+				printk("==== Got standby, 0x%lx flags 0x%lx\n",
+					con->state, con->flags);
+				con->error_msg = "standby socket closed";
+			} else {
 				printk("==== BAD STATE 0x%lx flags 0x%lx\n",
 					con->state, con->flags);
 				con->error_msg = "bad state???";
