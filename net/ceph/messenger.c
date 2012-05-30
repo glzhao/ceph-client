@@ -494,6 +494,7 @@ void ceph_con_open(struct ceph_connection *con, struct ceph_entity_addr *addr)
 	dout("con_open %p %s\n", con, ceph_pr_addr(&addr->in_addr));
 	set_bit(OPENING, &con->state);
 	WARN_ON(!test_and_clear_bit(CLOSED, &con->state));
+	set_bit(CONNECTING, &con->state);
 
 	memcpy(&con->peer_addr, addr, sizeof(*addr));
 	con->delay = 0;      /* reset backoff memory */
@@ -2018,7 +2019,7 @@ more:
 
 	/* open the socket first? */
 	if (con->sock == NULL) {
-		set_bit(CONNECTING, &con->state);
+		WARN_ON(!test_bit(CONNECTING, &con->state));
 		ret = ceph_con_connect_request(con);
 		if (ret < 0)
 			goto out;
