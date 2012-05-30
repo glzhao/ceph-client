@@ -2308,7 +2308,8 @@ static void ceph_fault(struct ceph_connection *con)
 
 	clear_bit(SOCK_CLOSED, &con->flags);
 
-	if (test_bit(LOSSYTX, &con->flags)) {
+	if (test_bit(LOSSYTX, &con->flags) &&
+			!test_bit(DISCONNECTED, &con->state)) {
 		dout("fault on LOSSYTX channel\n");
 		goto out;
 	}
