@@ -468,7 +468,7 @@ void ceph_con_close(struct ceph_connection *con)
 {
 	dout("con_close %p peer %s\n", con,
 	     ceph_pr_addr(&con->peer_addr.in_addr));
-	set_bit(CLOSED, &con->state);  /* in case there's queued work */
+	set_bit(CLOSED, &con->state);
 	clear_bit(CONNECTED, &con->state);
 	clear_bit(STANDBY, &con->state);  /* avoid connect_seq bump */
 	clear_bit(NEGOTIATING, &con->state);
@@ -2262,7 +2262,6 @@ restart:
 	}
 	if (test_bit(CLOSED, &con->state)) { /* e.g. if we are replaced */
 		dout("con_work CLOSED\n");
-		con_close_socket(con);
 		goto done;
 	}
 	if (test_and_clear_bit(OPENING, &con->state)) {
