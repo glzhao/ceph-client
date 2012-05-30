@@ -1954,8 +1954,6 @@ ceph_con_connect_request(struct ceph_connection *con)
 		return ret;
 
 	prepare_read_banner(con);
-	set_bit(CONNECTING, &con->state);
-
 	BUG_ON(con->in_msg);
 	con->in_tag = CEPH_MSGR_TAG_READY;
 	dout("%s initiating connect on %p new state %lu\n",
@@ -2020,6 +2018,7 @@ more:
 
 	/* open the socket first? */
 	if (con->sock == NULL) {
+		set_bit(CONNECTING, &con->state);
 		ret = ceph_con_connect_request(con);
 		if (ret < 0)
 			goto out;
