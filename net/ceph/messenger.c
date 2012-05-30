@@ -2169,7 +2169,7 @@ more:
 			break;
 		case CEPH_MSGR_TAG_CLOSE:
 			clear_bit(CONNECTED, &con->state);
-			set_bit(CLOSED, &con->state);   /* fixme */
+			set_bit(DISCONNECTED, &con->state);
 			goto out;
 		default:
 			goto bad_tag;
@@ -2244,6 +2244,9 @@ static void con_work(struct work_struct *work)
 
 	mutex_lock(&con->mutex);
 restart:
+	if (test_bit(DISCONNECTED, &con->state))
+		goto fault;
+
 	if (test_and_clear_bit(BACKOFF, &con->flags)) {
 		dout("con_work %p backing off\n", con);
 		if (queue_delayed_work(ceph_msgr_wq, &con->work,
@@ -2272,9 +2275,6 @@ restart:
 		dout("con_work OPENING\n");
 		con_close_socket(con);
 	}
-
-	if (test_bit(DISCONNECTED, &con->state))
-		goto fault;
 
 	ret = try_read(con);
 	if (ret == -EAGAIN)
