@@ -2268,7 +2268,6 @@ restart:
 	if (test_and_clear_bit(OPENING, &con->state)) {
 		/* reopen w/ new peer */
 		dout("con_work OPENING\n");
-		con_close_socket(con);
 	}
 
 	ret = try_read(con);
