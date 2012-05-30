@@ -1447,9 +1447,7 @@ static int process_banner(struct ceph_connection *con)
 
 static void fail_protocol(struct ceph_connection *con)
 {
-	clear_bit(CONNECTED, &con->state);
-	reset_connection(con);
-	set_bit(CLOSED, &con->state);  /* in case there's queued work */
+	ceph_con_close(con);
 }
 
 static int process_connect(struct ceph_connection *con)
