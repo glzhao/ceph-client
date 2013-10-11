@@ -95,6 +95,7 @@ const struct inode_operations ceph_file_iops = {
 	.getxattr = ceph_getxattr,
 	.listxattr = ceph_listxattr,
 	.removexattr = ceph_removexattr,
+	.get_acl = ceph_get_acl,
 };
 
 
@@ -1632,6 +1633,7 @@ static const struct inode_operations ceph_symlink_iops = {
 	.getxattr = ceph_getxattr,
 	.listxattr = ceph_listxattr,
 	.removexattr = ceph_removexattr,
+	.get_acl = ceph_get_acl,
 };
 
 /*
@@ -1702,9 +1704,11 @@ int ceph_setattr(struct dentry *dentry, struct iattr *attr)
 		     attr->ia_mode);
 		if (issued & CEPH_CAP_AUTH_EXCL) {
 			inode->i_mode = attr->ia_mode;
-			dirtied |= CEPH_CAP_AUTH_EXCL;
+			dirtied |= CEPH_CAP_AUTH_EXCL | CEPH_CAP_XATTR_EXCL;
+			ci->i_xattrs.dirty = true;
 		} else if ((issued & CEPH_CAP_AUTH_SHARED) == 0 ||
 			   attr->ia_mode != inode->i_mode) {
+			inode->i_mode = attr->ia_mode;
 			req->r_args.setattr.mode = cpu_to_le32(attr->ia_mode);
 			mask |= CEPH_SETATTR_MODE;
 			release |= CEPH_CAP_AUTH_SHARED;
@@ -1820,6 +1824,12 @@ int ceph_setattr(struct dentry *dentry, struct iattr *attr)
 	if (inode_dirty_flags)
 		__mark_inode_dirty(inode, inode_dirty_flags);
 
+	if (ia_valid & ATTR_MODE) {
+		err = ceph_acl_chmod(dentry, inode);
+		if (err)
+			goto out_put;
+	}
+
 	if (mask) {
 		req->r_inode = inode;
 		ihold(inode);
@@ -1839,6 +1849,7 @@ int ceph_setattr(struct dentry *dentry, struct iattr *attr)
 	return err;
 out:
 	spin_unlock(&ci->i_ceph_lock);
+out_put:
 	ceph_mdsc_put_request(req);
 	return err;
 }
